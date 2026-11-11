@@ -1,0 +1,161 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL") // pooled (Supabase port 6543) for the running app
+  directUrl = env("DIRECT_URL") // direct (port 5432) for db push / migrations
+}
+
+enum ReserveStatus {
+  UNVERIFIED
+  PENDING
+  VERIFIED
+}
+
+enum AdminRole {
+  VIEWER
+  EDITOR
+  OWNER
+}
+
+model User {
+  id        String          @id @default(cuid())
+  createdAt DateTime        @default(now())
+  wallets   Wallet[]
+  watchlist WatchlistItem[]
+}
+
+model Wallet {
+  id        String              @id @default(cuid())
+  address   String              @unique
+  userId    String
+  user      User                @relation(fields: [userId], references: [id])
+  snapshots PortfolioSnapshot[]
+  createdAt DateTime            @default(now())
+}
+
+model Token {
+  id          String          @id
+  name        String
+  ticker      String
+  mint        String?
+  decimals    Int?
+  description String?
+  logoUrl     String?
+  website     String?
+  twitter     String?
+  telegram    String?
+  totalSupply String?
+  circulating String?
+  featured    Boolean         @default(false)
+  updatedAt   DateTime        @updatedAt
+  prices      PriceSnapshot[]
+  reserves    ReserveRecord[]
+  watchers    WatchlistItem[]
+}
+
+model PriceSnapshot {
+  id           String   @id @default(cuid())
+  tokenId      String
+  token        Token    @relation(fields: [tokenId], references: [id])
+  priceUsd     Float
+  marketCap    Float?
+  volume24h    Float?
+  liquidityUsd Float?
+  holders      Int?
+  at           DateTime @default(now())
+
+  @@index([tokenId, at])
+}
+
+model WatchlistItem {
+  id      String @id @default(cuid())
+  userId  String
+  tokenId String
+  user    User   @relation(fields: [userId], references: [id])
+  token   Token  @relation(fields: [tokenId], references: [id])
+
+  @@unique([userId, tokenId])
+}
+
+model PortfolioSnapshot {
+  id        String   @id @default(cuid())
+  walletId  String
+  wallet    Wallet   @relation(fields: [walletId], references: [id])
+  totalUsd  Float
+  breakdown Json
+  at        DateTime @default(now())
+}
+
+model ReserveRecord {
+  id           String            @id @default(cuid())
+  tokenId      String
+  token        Token             @relation(fields: [tokenId], references: [id])
+  metal        String
+  amount       Decimal?
+  unit         String?
+  valuationUsd Decimal?
+  backingRatio Decimal?
+  status       ReserveStatus     @default(UNVERIFIED)
+  custodian    String?
+  notes        String?
+  updatedBy    String?
+  at           DateTime          @default(now())
+  documents    ReserveDocument[]
+}
+
+model ReserveDocument {
+  id        String        @id @default(cuid())
+  reserveId String
+  reserve   ReserveRecord @relation(fields: [reserveId], references: [id])
+  title     String
+  url       String
+  kind      String
+  at        DateTime      @default(now())
+}
+
+model Admin {
+  id        String    @id @default(cuid())
+  wallet    String    @unique
+  role      AdminRole @default(EDITOR)
+  createdAt DateTime  @default(now())
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  adminWallet String
+  action      String
+  target      String?
+  detail      Json?
+  at          DateTime @default(now())
+
+  @@index([at])
+}
+
+model Announcement {
+  id        String   @id @default(cuid())
+  text      String
+  active    Boolean  @default(true)
+  createdBy String?
+  at        DateTime @default(now())
+}
+
+model Upload {
+  id        String   @id @default(cuid())
+  name      String
+  mime      String
+  size      Int
+  data      Bytes
+  createdBy String?
+  at        DateTime @default(now())
+}
+
+model WalletLabel {
+  address   String   @id
+  label     String
+  kind      String
+  createdBy String?
+  at        DateTime @default(now())
+}

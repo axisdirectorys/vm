@@ -1,0 +1,29 @@
+"use client";
+import { useEffect, useState } from "react";
+import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { TOKENS } from "@/config/tokens";
+import { useData } from "@/components/Data";
+import { usd } from "@/components/ui";
+import GrowthChart from "@/components/GrowthChart";
+const R: Record<string, [string, number]> = { "24h": ["1h", 24], "7d": ["1h", 168], "30d": ["1d", 30], "90d": ["1d", 90], all: ["1d", 500] };
+export default function Analytics() {
+  const { market, meta } = useData(); const [rg, setRg] = useState("7d"); const [perf, setPerf] = useState<any[]>([]); const [vol, setVol] = useState<any[]>([]); const [err, setErr] = useState<string>(); const [top, setTop] = useState<any[]>([]);
+  useEffect(() => { let dead = false; setErr(undefined); (async () => { const [tf, n] = R[rg]; const P = new Map<number, any>(), V = new Map<number, any>(); let any = false, fail: string | undefined;
+    for (const t of TOKENS) { const j = await fetch(`/api/candles?token=${t.id}&tf=${tf}`).then((r) => r.json()).catch(() => ({ error: "unavailable" })); if (!j.candles) { fail = j.error; continue; } any = true;
+      const c = j.candles.slice(-n); const b = c[0]?.close; c.forEach((k: any) => { P.set(k.time, { ...(P.get(k.time) ?? { time: k.time }), [t.ticker]: b ? +(((k.close / b) - 1) * 100).toFixed(2) : null }); V.set(k.time, { ...(V.get(k.time) ?? { time: k.time }), [t.ticker]: +(k.volume).toFixed(2) }); }); }
+    if (dead) return; const s = (m: Map<number, any>) => [...m.values()].sort((a, b) => a.time - b.time).map((x) => ({ ...x, label: new Date(x.time * 1000).toLocaleDateString(undefined, tf === "1h" ? { hour: "numeric", day: "numeric" } : { month: "short", day: "numeric" }) }));
+    setPerf(s(P)); setVol(s(V)); if (!any) setErr(fail ?? "No historical data available yet"); })(); return () => { dead = true; }; }, [rg]);
+  useEffect(() => { Promise.all(TOKENS.map((t) => fetch(`/api/holders?token=${t.id}`).then((r) => r.json()).then((j) => ({ name: t.ticker, top10: j.holders ? +j.holders.slice(0, 10).reduce((a: number, h: any) => a + h.pct, 0).toFixed(2) : null })).catch(() => ({ name: t.ticker, top10: null })))).then(setTop); }, []);
+  const ok = market.filter((m) => m.status === "ok"); const sum = (k: keyof (typeof ok)[number]) => ok.length ? ok.reduce((a, m) => a + ((m[k] as number) ?? 0), 0) : null;
+  const colors: Record<string, string> = Object.fromEntries(TOKENS.map((t) => [t.ticker, t.color]));
+  const liq = TOKENS.map((t) => ({ name: t.ticker, liquidity: market.find((m) => m.id === t.id)?.liquidityUsd ?? 0 }));
+  return <div className="page"><h1>Analytics</h1>
+    <div className="grid"><div className="card"><span className="mu">Combined market cap</span><b>{usd(sum("marketCap") as number)}</b></div><div className="card"><span className="mu">Combined 24h volume</span><b>{usd(sum("volume24h") as number)}</b></div><div className="card"><span className="mu">Combined liquidity</span><b>{usd(sum("liquidityUsd") as number)}</b></div><div className="card"><span className="mu">Total holders</span><b>{(() => { const hs = meta.map((m) => m.holdersCount).filter((x): x is number => x != null); return hs.length ? hs.reduce((a, b) => a + b, 0).toLocaleString() : "—"; })()}</b></div></div>
+    <div className="chips" style={{ padding: "0 0 12px" }}>{Object.keys(R).map((k) => <button key={k} className={`chip ${rg === k ? "on" : ""}`} onClick={() => setRg(k)}>{k === "all" ? "All time" : k}</button>)}</div>
+    {err ? <div className="err">{err}</div> : <><div className="card" style={{ height: 300, marginBottom: 12 }}><b>Performance (% since start of range)</b><ResponsiveContainer><LineChart data={perf}><CartesianGrid stroke="#15221B" /><XAxis dataKey="label" stroke="#84938A" minTickGap={40} /><YAxis stroke="#84938A" unit="%" /><Tooltip contentStyle={{ background: "#101A15", border: "1px solid #1d2c24" }} /><Legend />{TOKENS.map((t) => <Line key={t.id} dataKey={t.ticker} stroke={colors[t.ticker]} dot={false} connectNulls />)}</LineChart></ResponsiveContainer></div>
+      <div className="card" style={{ height: 300, marginBottom: 12 }}><b>Trading volume (USD)</b><ResponsiveContainer><BarChart data={vol}><CartesianGrid stroke="#15221B" /><XAxis dataKey="label" stroke="#84938A" minTickGap={40} /><YAxis stroke="#84938A" /><Tooltip contentStyle={{ background: "#101A15", border: "1px solid #1d2c24" }} /><Legend />{TOKENS.map((t) => <Bar key={t.id} dataKey={t.ticker} stackId="v" fill={colors[t.ticker]} />)}</BarChart></ResponsiveContainer></div></>}
+    <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))" }}><div className="card" style={{ height: 240 }}><b>Liquidity comparison</b><ResponsiveContainer><BarChart data={liq}><XAxis dataKey="name" stroke="#84938A" /><YAxis stroke="#84938A" /><Tooltip formatter={(v: any) => usd(Number(v))} contentStyle={{ background: "#101A15" }} /><Bar dataKey="liquidity" fill="#42E88A" /></BarChart></ResponsiveContainer></div>
+      <div className="card" style={{ height: 240 }}><b>Supply held by top 10 accounts (%)</b><ResponsiveContainer><BarChart data={top}><XAxis dataKey="name" stroke="#84938A" /><YAxis stroke="#84938A" domain={[0, 100]} /><Tooltip contentStyle={{ background: "#101A15" }} /><Bar dataKey="top10" fill="#20B96C" /></BarChart></ResponsiveContainer></div></div>
+    <div className="card" style={{ margin: "12px 0" }}><b>Holder growth</b><div style={{ marginTop: 8 }}><GrowthChart token="all" days={{ "24h": 1, "7d": 7, "30d": 30, "90d": 90, all: 3650 }[rg] ?? 7} /></div></div>
+    <p className="mu">Volume is the provider's quote-currency volume per candle. Holder growth comes from hourly snapshots, so history starts from when the database is first connected.</p></div>;
+}
