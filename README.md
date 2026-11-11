@@ -1,22 +1,6 @@
 # Virtual Metals
 Solana trading dashboard for $VG, $VS, $VB, $VC.
 
-## Setup
-1. `npm install`
-2. `cp .env.example .env.local` and fill in values (see below)
-3. `npx prisma generate` (and `npx prisma db push` once DATABASE_URL is set)
-4. `npm run dev` -> http://localhost:3000
-
-## Keys: what and where
-| Variable | Where to get it | Needed for |
-|---|---|---|
-| NEXT_PUBLIC_MINT_VG/VS/VB/VC | Your token mint addresses | Everything token-related |
-| HELIUS_API_KEY | dashboard.helius.dev | RPC, holders, tx send/confirm |
-| JUPITER_API_URL / JUPITER_API_KEY | dev.jup.ag | Swap quotes and transactions |
-| DATABASE_URL | Supabase / Neon / local Postgres | Watchlists, reserves, admin, audit log |
-| ADMIN_SESSION_SECRET, ADMIN_WALLET_ALLOWLIST | `openssl rand -base64 32`; your admin wallet(s) | Admin (next phase) |
-DexScreener and GeckoTerminal need no key. Server-only keys have no NEXT_PUBLIC_ prefix.
-
 ## What's built
 Pages: / , /gold /silver /bronze /copper, /explore, /portfolio, /analytics, /transactions, /watchlist, /about, /admin.
 - Market data (DexScreener), real candles (GeckoTerminal), holders + RPC (Helius), swaps (Jupiter quote -> wallet signs -> confirmation polling).
